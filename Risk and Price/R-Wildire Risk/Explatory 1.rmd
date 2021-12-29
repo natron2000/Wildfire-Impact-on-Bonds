@@ -1,0 +1,13 @@
+---
+title: "Exploratory 1"
+output: pdf_document
+---
+
+
+```{r}
+con <- dbConnect(SQLite(), "../../Data/RDS/Data/FPA_FOD.sqlite")
+```
+
+```{r}
+dbGetQuery(con, 'SELECT * FROM Fires LIMIT 5')
+```
