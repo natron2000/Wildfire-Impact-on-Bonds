@@ -1,0 +1,58 @@
+---
+title: "Explatory 2"
+output: html_document
+---
+```{r}
+library(readxl)
+library(dplyr)
+```
+
+
+
+Connect to SQLITE database and get data from the database
+```{r}
+con <- dbConnect(SQLite(), "../../Data/RDS/Data/FPA_FOD.sqlite")
+resB<-dbGetQuery(con, "SELECT  FIRE_YEAR, FIRE_SIZE, FIPS_NAME,FIPS_CODE, STATE, LATITUDE, LONGITUDE FROM Fires WHERE (FIRE_SIZE > 5) AND (FIRE_YEAR <= 2012)")
+resA <- dbGetQuery(con, "SELECT  FIRE_YEAR, FIRE_SIZE, FIPS_NAME,FIPS_CODE, STATE, LATITUDE, LONGITUDE FROM Fires WHERE (FIRE_SIZE > 5) AND (FIRE_YEAR > 2012)")
+dbDisconnect(con)
+```
+
+sum total acre burn for each county
+```{r}
+fire_sumB <- aggregate(resB$FIRE_SIZE,list(resB$FIPS_CODE),FUN=sum)
+colnames(fire_sumB) <- c('fips','Total_BurnB')
+fire_sumB
+
+fire_sumA <- aggregate(resA$FIRE_SIZE,list(resA$FIPS_CODE),FUN=sum)
+colnames(fire_sumA) <- c('fips','Total_BurnA')
+fire_sumA
+```
+
+Get Census Dataset (Area)
+```{r}
+county_size <- read_excel('../../Data/Census Data/LND01.xls')
+county_size <- county_size[!(as.numeric(county_size$STCOU)%%1000 == 0),]
+county_size <- county_size[,c('Areaname','STCOU','LND110210D')]
+
+colnames(county_size)[colnames(county_size)=='STCOU'] <- 'fips'
+colnames(county_size)[colnames(county_size)=='LND110210D'] <- 'Area'
+county_size$Area <- county_size$Area*640 #Get into acreas instead of square miles
+county_size
+```
+
+```{r}
+county_burn <- full_join(county_size,fire_sumB,by='fips')
+county_burn <- full_join(county_burn,fire_sumA,by='fips')
+county_burn$Total_BurnB[is.na(county_burn$Total_BurnB)] <- 0
+county_burn$Total_BurnA[is.na(county_burn$Total_BurnA)] <- 0
+
+county_burn$Per_AreaB <- county_burn$Total_BurnB/county_burn$Area
+county_burn$Per_AreaA <- county_burn$Total_BurnA/county_burn$Area
+county_burn <- county_burn[order(county_burn$Per_AreaA,decreasing=TRUE),]
+county_burn
+```
+
+
+```{r}
+lm(Total_BurnB ~ Total_BurnA, ddata = county_burn)
+```
